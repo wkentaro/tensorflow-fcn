@@ -30,7 +30,7 @@ class FCN32s(object):
         if train:
             height, width = x.get_shape().as_list()[1:3]
             label = tf.placeholder(
-                tf.int32, [None, height, width, 1], name='label')
+                tf.int32, [None, height, width], name='label')
 
         self.conv1_1 = self._conv_layer(
             x, 'conv1_1', n_output=64, ksize=3, padding='VALID',
@@ -101,7 +101,8 @@ class FCN32s(object):
 
         output_shape = x.get_shape().as_list()
         output_shape[3] = 21
-        output_shape = tf.placeholder(tf.int32, output_shape, name='output_shape')
+        output_shape = tf.placeholder(
+            tf.int32, output_shape, name='output_shape')
         self.upscore = self._deconv_layer(
             self.score_fr, 'upscore', ksize=64, output_shape=output_shape,
             strides=[1, 32, 32, 1])  # 1
@@ -192,7 +193,8 @@ def main():
 
     learning_rate = 1e-10
     momentum = 0.99
-    optimizer = tf.train.MomentumOptimizer(learning_rate, momentum)
+    optimizer = tf.train.MomentumOptimizer(learning_rate, momentum)\
+        .minimize(fcn['loss'])
 
     sess = tf.Session()
     sess.run(tf.initialize_all_variables())
@@ -202,10 +204,10 @@ def main():
     max_iteration = 100000
     for i_iter in xrange(max_iteration):
         datum = dataset.next_batch(batch_size=1, type='train')
-        rgb = (datum.img - np.array([103.939, 116.779, 123.68]))
+        rgb = (datum.img[0] - np.array([103.939, 116.779, 123.68]))
         bgr = rgb[::-1]
         x = bgr[np.newaxis, ...]
-        label = datum.label[np.newaxis, ...]
+        label = datum.label[0][np.newaxis, ...]
         sess.run(optimizer, feed_dict={fcn['x']: x, fcn['label']: label})
         print(i_iter, sess.run(fcn['loss'],
                                feed_dict={fcn['x']: x, fcn['label']: label}))
