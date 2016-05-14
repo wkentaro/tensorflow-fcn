@@ -9,34 +9,15 @@ import tensorflow as tf
 from fcn import pascal
 
 
-def logsumexp(x):
-    m = tf.reduce_max(x, reduction_indices=1, keep_dims=True)
-    y = x - m
-    y = tf.exp(y)
-    return tf.log(tf.reduce_sum(y, reduction_indices=1, keep_dims=True)) + m
-
-
-def softmax_log(x):
-    log_z = logsumexp(x)
-    return x - log_z
-
-
-def softmax_cross_entropy(x, label, normalize=True, ignore_label=-1):
-    log_y = softmax_log(x)
-    assert len(log_y.get_shape().as_list()) == 4
-    log_yd = tf.transpose(x, perm=[1, 0, 2, 3])
-    log_yd = tf.reshape(log_yd, tf.pack([1, -1]))
-    log_p = log_yd[tf.maximum(tf.reduce_max(tf.reshape(label, [-1])), 0),
-                   tf.range(tf.size(label))]
-    if normalize:
-        coeff = tf.maximum(1, tf.reduce_sum(tf.not_equal(label, ignore_label)))
-    else:
-        coeff = tf.maximum(1, tf.constant(x.get_shape().as_list()[0]))
-    coeff = tf.div(1, coeff)
-    y = tf.mul(log_p, tf.not_equal(label.flat(), ignore_label))
-    y = tf.reduce_sum(y, keep_dims=True)
-    y = tf.mul(y, -coeff)
-    return y[0]
+def softmax_cross_entropy(x, label):
+    shape = tf.convert_to_tensor([1, -1], dtype=tf.int32, name='shape')
+    x = tf.reshape(x, shape)
+    label = tf.reshape(label, shape)
+    y = tf.nn.softmax(x)
+    loss = tf.gather_nd(y, tf.tile(label, [1, 21]))
+    mean_loss = - tf.div(tf.reduce_sum(tf.log(loss), keep_dims=True),
+                         tf.to_float(tf.size(label)))
+    return mean_loss
 
 
 class FCN32s(object):
@@ -126,8 +107,6 @@ class FCN32s(object):
             strides=[1, 32, 32, 1])  # 1
 
         if train:
-            print('>>>', self.upscore.get_shape().as_list())
-            print('>>>', label.get_shape().as_list())
             loss = softmax_cross_entropy(self.upscore, label)
             return {'x': x, 'label': label, 'loss': loss}
 
